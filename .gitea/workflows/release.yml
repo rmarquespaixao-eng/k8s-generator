@@ -1,14 +1,12 @@
-name: Release (build multiplataforma + publica no Gitea)
+name: Release (matriz nativa Linux + Windows -> publica no Gitea)
 
-# Disparo manual informando a versão (X.Y.Z). O job:
-#   1) valida a versão e garante que a tag ainda não existe
-#   2) roda os testes
-#   3) ajusta a versão local (sem commit) p/ nomear os artefatos
-#   4) empacota Linux (AppImage + deb) nativo e Windows (nsis via wine, best-effort)
-#   5) cria o Release vX.Y.Z no commit atual do main e sobe os artefatos como assets
+# Disparo manual informando a versão (X.Y.Z). Estágios:
+#   meta     (linux) valida versão / tag, resolve o commit
+#   build    (matriz ubuntu + windows) empacota NATIVO e publica como artifact
+#   publish  (linux) baixa os artifacts, cria o Release vX.Y.Z e sobe os assets
 #
-# macOS (.dmg): NÃO é gerado aqui — electron-builder não cross-compila p/ mac no Linux.
-# Para incluir mac, registre um act_runner macOS e adicione um job `runs-on` nesse label.
+# Só o runner Linux fala com a API do Gitea (http://gitea:3000) — o runner Windows
+# apenas produz o .exe e entrega via artifact. macOS não é alvo (sem runner mac).
 on:
   workflow_dispatch:
     inputs:
@@ -17,19 +15,19 @@ on:
         required: true
 
 jobs:
-  release:
+  meta:
     runs-on: ubuntu-latest
-    env:
-      # evita o electron-builder tentar assinar (não temos certificados)
-      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    outputs:
+      v: ${{ steps.m.outputs.v }}
+      tag: ${{ steps.m.outputs.tag }}
+      sha: ${{ steps.m.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: main
-
-      - name: Meta (valida versão)
-        id: meta
+      - name: Valida versão
+        id: m
         env:
           IN: ${{ github.event.inputs.version }}
         run: |
@@ -38,6 +36,28 @@ jobs:
           if git rev-parse "$TAG" >/dev/null 2>&1; then echo "::error::tag $TAG já existe"; exit 1; fi
           { echo "v=$V"; echo "tag=$TAG"; echo "sha=$(git rev-parse HEAD)"; } >> "$GITHUB_OUTPUT"
           echo ">> lançando v${V} no commit $(git rev-parse --short HEAD)"
+
+  build:
+    needs: meta
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            builder: --linux
+            artifact: dist-linux
+          - os: windows-latest
+            platform: windows
+            builder: --win
+            artifact: dist-windows
+    runs-on: ${{ matrix.os }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false" # sem assinatura de código
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: actions/setup-node@v4
         with:
@@ -50,35 +70,46 @@ jobs:
         run: npm test
 
       - name: Versão dos artefatos (sem commit)
-        run: npm version "${{ steps.meta.outputs.v }}" --no-git-tag-version --allow-same-version
-
-      - name: Dependências de empacotamento Windows (wine, best-effort)
-        run: |
-          sudo dpkg --add-architecture i386 || true
-          sudo apt-get update || true
-          sudo apt-get install -y --no-install-recommends wine64 wine32 || sudo apt-get install -y --no-install-recommends wine || true
+        run: npm version "${{ needs.meta.outputs.v }}" --no-git-tag-version --allow-same-version
 
       - name: Bundle (electron-vite)
         run: npm run build
 
-      - name: Empacota Linux (AppImage + deb)
-        run: npx electron-builder --linux --publish never
+      - name: Empacota (${{ matrix.platform }})
+        run: npx electron-builder ${{ matrix.builder }} --publish never
 
-      - name: Empacota Windows (nsis via wine, best-effort)
-        continue-on-error: true
-        run: npx electron-builder --win --publish never
+      - name: Publica artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.exe
 
-      - name: Lista artefatos
-        run: ls -lh release || true
+  publish:
+    needs: [meta, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Baixa os artifacts dos builds
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
 
       - name: Cria Release no Gitea
         id: rel
         env:
           TOKEN: ${{ secrets.CI_PUSH_TOKEN }}
           REPO: ${{ github.repository }}
-          TAG: ${{ steps.meta.outputs.tag }}
-          SHA: ${{ steps.meta.outputs.sha }}
-          V: ${{ steps.meta.outputs.v }}
+          TAG: ${{ needs.meta.outputs.tag }}
+          SHA: ${{ needs.meta.outputs.sha }}
+          V: ${{ needs.meta.outputs.v }}
         run: |
           CHANGELOG=$(git log --no-merges --format='- %s (%h)' -n 30 || true)
           [ -n "$CHANGELOG" ] || CHANGELOG="- release ${V}"
@@ -97,14 +128,14 @@ jobs:
           REPO: ${{ github.repository }}
           ID: ${{ steps.rel.outputs.id }}
         run: |
-          shopt -s nullglob
           count=0
-          for f in release/*.AppImage release/*.deb release/*.exe; do
+          while IFS= read -r f; do
             echo ">> upload $(basename "$f")"
             curl -fsS -X POST \
               "http://gitea:3000/api/v1/repos/${REPO}/releases/${ID}/assets?name=$(basename "$f")" \
               -H "Authorization: token ${TOKEN}" \
               -F "attachment=@${f}" >/dev/null
             count=$((count + 1))
-          done
-          echo "✓ ${count} asset(s) enviados ao release ${{ steps.meta.outputs.tag }}"
+          done < <(find dist -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.exe' \))
+          [ "$count" -gt 0 ] || { echo "::error::nenhum artefato encontrado"; exit 1; }
+          echo "✓ ${count} asset(s) enviados ao release ${{ needs.meta.outputs.tag }}"

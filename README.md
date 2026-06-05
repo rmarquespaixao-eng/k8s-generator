@@ -68,17 +68,19 @@ Cada recurso é ligado/desligado por um switch. O workload cabeia automaticament
 - [`ci.yml`](.gitea/workflows/ci.yml) — em push/PR p/ `main`: roda `npm test` + `npm run build`
   na matriz Node 20/22/24.
 - [`release.yml`](.gitea/workflows/release.yml) — disparo manual (Actions → Run workflow,
-  informando a versão `X.Y.Z`): testa, empacota **Linux (AppImage + deb)** e
-  **Windows (nsis via wine, best-effort)**, cria o Release `vX.Y.Z` no Gitea e
-  sobe os artefatos como assets.
+  informando a versão `X.Y.Z`). Matriz **nativa por OS**:
+  - `meta` (linux) valida a versão/tag;
+  - `build` empacota **nativo** em cada runner — **Linux** (AppImage + deb) e
+    **Windows** (nsis `.exe`) — e publica como artifact;
+  - `publish` (linux) baixa os artifacts, cria o Release `vX.Y.Z` e sobe os assets.
 
 Requisitos do runner:
-- Secret **`CI_PUSH_TOKEN`** (token admin com `write:repository`) disponível ao repo —
-  usado na API interna `http://gitea:3000`.
-- 1 `act_runner` Linux (`ubuntu-latest`). O Windows é cross-buildado via wine no
-  mesmo runner.
-- **macOS (.dmg) não é gerado no Linux** — exige um `act_runner` macOS; basta
-  adicionar um job `runs-on: <label-mac>` rodando `npx electron-builder --mac`.
+- 1 `act_runner` **Linux** (`ubuntu-latest`) + 1 `act_runner` **Windows** (`windows-latest`).
+- Secret **`CI_PUSH_TOKEN`** (token admin com `write:repository`). Só o runner Linux
+  fala com a API do Gitea (`http://gitea:3000`); o Windows entrega o `.exe` via
+  artifact, então não precisa de acesso à API.
+- **macOS não é alvo** (sem runner mac). Para incluir, registre um runner macOS e
+  adicione `{ os: <label-mac>, builder: --mac, artifact: dist-mac }` na matriz de `build`.
 
 ## Desenvolvimento
 
