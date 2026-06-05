@@ -1,0 +1,25 @@
+{
+  "name": "k8s-generator",
+  "version": "0.1.0",
+  "description": "Gerador de manifestos Kubernetes (Deployment, Service, Ingress, ConfigMap, ExternalSecret, HPA, CronJob, PVC) com saída em YAML, Kustomize e Helm",
+  "author": "rafael",
+  "license": "MIT",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "start": "electron-vite preview",
+    "test": "node --test \"test/**/*.test.mjs\""
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "bootstrap": "^5.3.3",
+    "electron": "^33.2.1",
+    "electron-vite": "^2.3.0",
+    "vue": "^3.5.13"
+  }
+}
