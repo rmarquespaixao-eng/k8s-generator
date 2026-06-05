@@ -63,6 +63,23 @@ Cada recurso é ligado/desligado por um switch. O workload cabeia automaticament
 - **Preview em abas por arquivo** — aba "Todos" (visão combinada) + uma aba por
   arquivo gerado (recurso/template); Copiar copia o arquivo da aba ativa.
 
+## CI / Release (Gitea Actions)
+
+- [`ci.yml`](.gitea/workflows/ci.yml) — em push/PR p/ `main`: roda `npm test` + `npm run build`
+  na matriz Node 20/22/24.
+- [`release.yml`](.gitea/workflows/release.yml) — disparo manual (Actions → Run workflow,
+  informando a versão `X.Y.Z`): testa, empacota **Linux (AppImage + deb)** e
+  **Windows (nsis via wine, best-effort)**, cria o Release `vX.Y.Z` no Gitea e
+  sobe os artefatos como assets.
+
+Requisitos do runner:
+- Secret **`CI_PUSH_TOKEN`** (token admin com `write:repository`) disponível ao repo —
+  usado na API interna `http://gitea:3000`.
+- 1 `act_runner` Linux (`ubuntu-latest`). O Windows é cross-buildado via wine no
+  mesmo runner.
+- **macOS (.dmg) não é gerado no Linux** — exige um `act_runner` macOS; basta
+  adicionar um job `runs-on: <label-mac>` rodando `npx electron-builder --mac`.
+
 ## Desenvolvimento
 
 ```bash
