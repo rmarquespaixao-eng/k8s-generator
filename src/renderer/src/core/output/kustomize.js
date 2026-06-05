@@ -1,4 +1,5 @@
 import { resourceToYaml, objectToYaml } from '../toYaml.js'
+import { applyScript } from './applyScript.js'
 
 /**
  * Kustomize base layout:
@@ -26,6 +27,10 @@ export function buildKustomize(spec, manifests) {
   const preview = files
     .map((f) => `# === ${f.path} ===\n${f.content}`)
     .join('\n')
+
+  if (manifests.length) {
+    files.push({ path: 'apply.sh', content: applyScript(spec, 'kustomize') })
+  }
 
   return { files, preview }
 }

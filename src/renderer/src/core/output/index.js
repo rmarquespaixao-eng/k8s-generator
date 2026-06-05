@@ -2,6 +2,7 @@ import { buildManifests } from '../manifests.js'
 import { resourceToYaml } from '../toYaml.js'
 import { buildKustomize } from './kustomize.js'
 import { buildHelm } from './helm.js'
+import { applyScript } from './applyScript.js'
 
 /** Raw YAML: a single multi-doc preview + either split files or one combined file. */
 function buildYaml(spec, manifests) {
@@ -11,6 +12,10 @@ function buildYaml(spec, manifests) {
   const files = spec.output.splitFiles
     ? manifests.map((m) => ({ path: m.filename, content: resourceToYaml(m.resource) }))
     : [{ path: 'manifests.yaml', content: preview }]
+
+  if (manifests.length) {
+    files.push({ path: 'apply.sh', content: applyScript(spec, 'yaml', files.map((f) => f.path)) })
+  }
 
   return { files, preview }
 }

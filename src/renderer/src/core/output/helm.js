@@ -1,6 +1,7 @@
 import { buildManifests } from '../manifests.js'
 import { objectToYaml } from '../toYaml.js'
 import { prune } from '../util.js'
+import { applyScript } from './applyScript.js'
 
 /** Split "repo:tag" into { repository, tag } (tag defaults to "latest"). */
 function splitImage(image) {
@@ -109,5 +110,10 @@ export function buildHelm(spec) {
   }
 
   const preview = files.map((f) => `# === ${f.path} ===\n${f.content}`).join('\n')
+
+  if (manifests.length) {
+    files.push({ path: 'apply.sh', content: applyScript(spec, 'helm') })
+  }
+
   return { files, preview }
 }

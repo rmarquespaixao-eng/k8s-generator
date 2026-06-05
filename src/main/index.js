@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join, dirname } from 'path'
-import { mkdir, writeFile, readFile } from 'fs/promises'
+import { mkdir, writeFile, readFile, chmod } from 'fs/promises'
 import { spawn } from 'child_process'
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
@@ -57,6 +57,7 @@ ipcMain.handle('save-files', async (_evt, files) => {
     const target = join(baseDir, f.path)
     await mkdir(dirname(target), { recursive: true })
     await writeFile(target, f.content, 'utf8')
+    if (target.endsWith('.sh')) await chmod(target, 0o755) // tornar executável
     written.push(target)
   }
   return { ok: true, baseDir, written }

@@ -64,7 +64,8 @@ test('kustomize output lists every resource', () => {
   const out = buildOutput(s)
   const kfile = out.files.find((f) => f.path.endsWith('kustomization.yaml'))
   const k = yaml.load(kfile.content)
-  assert.equal(k.resources.length, out.files.length - 1)
+  // files = N resources + kustomization.yaml + apply.sh
+  assert.equal(k.resources.length, out.files.length - 2)
 })
 
 test('helm chart has Chart.yaml, values.yaml and workload template', () => {
@@ -309,6 +310,36 @@ test('round-trip: Argo Application + Rollout + Workflow', () => {
   assert.equal(back.argoApp.path, 'manifests/')
   assert.equal(back.argoWorkflow.enabled, true)
   assert.equal(back.argoWorkflow.kind, 'CronWorkflow')
+})
+
+test('apply.sh: ordered kubectl per file (yaml), -k (kustomize), helm install', () => {
+  const s = everythingSpec()
+  // YAML split: applies each manifest in dependency order, not itself
+  s.output.splitFiles = true
+  let out = buildOutput(s)
+  let sh = out.files.find((f) => f.path === 'apply.sh').content
+  assert.match(sh, /^#!\/usr\/bin\/env bash/)
+  const nsIdx = sh.indexOf('namespace.yaml')
+  const wlIdx = sh.indexOf('workload.yaml')
+  assert.ok(nsIdx !== -1 && wlIdx !== -1 && nsIdx < wlIdx, 'namespace antes do workload')
+  assert.doesNotMatch(sh, /apply -f "apply\.sh"/)
+
+  // Kustomize
+  s.output.format = 'kustomize'
+  sh = buildOutput(s).files.find((f) => f.path === 'apply.sh').content
+  assert.match(sh, /kubectl apply -k/)
+
+  // Helm
+  s.output.format = 'helm'
+  sh = buildOutput(s).files.find((f) => f.path === 'apply.sh').content
+  assert.match(sh, /helm upgrade --install full/)
+})
+
+test('apply.sh is absent from the YAML combined preview', () => {
+  const out = buildOutput(everythingSpec())
+  assert.doesNotMatch(out.preview, /apply\.sh|kubectl apply/)
+  // but present as a file
+  assert.ok(out.files.some((f) => f.path === 'apply.sh'))
 })
 
 test('highlightYaml wraps keys and escapes HTML', () => {
