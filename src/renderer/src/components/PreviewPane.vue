@@ -68,31 +68,36 @@ async function validate() {
 
 <template>
   <section class="app-preview">
-    <div class="d-flex align-items-center gap-2 p-2 border-bottom preview-toolbar">
-      <div class="btn-group btn-group-sm" role="group">
-        <button
-          v-for="f in formats"
-          :key="f.id"
-          type="button"
-          class="btn"
-          :class="props.spec.output.format === f.id ? 'btn-primary' : 'btn-outline-light'"
-          @click="props.spec.output.format = f.id"
-        >
-          {{ f.label }}
-        </button>
+    <div class="preview-toolbar border-bottom p-2">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="btn-group btn-group-sm" role="group">
+          <button
+            v-for="f in formats"
+            :key="f.id"
+            type="button"
+            class="btn"
+            :class="props.spec.output.format === f.id ? 'btn-primary' : 'btn-outline-light'"
+            @click="props.spec.output.format = f.id"
+          >
+            {{ f.label }}
+          </button>
+        </div>
+
+        <div v-if="props.spec.output.format === 'yaml'" class="form-check form-switch text-light small mb-0">
+          <input id="split" v-model="props.spec.output.splitFiles" class="form-check-input" type="checkbox" role="switch" />
+          <label class="form-check-label" for="split">1 arquivo/recurso</label>
+        </div>
+
+        <span class="text-secondary small ms-auto text-nowrap">
+          {{ output.resourceCount }} rec · {{ output.files.length }} arq
+        </span>
       </div>
 
-      <div v-if="props.spec.output.format === 'yaml'" class="form-check form-switch text-light small ms-2 mb-0">
-        <input id="split" v-model="props.spec.output.splitFiles" class="form-check-input" type="checkbox" role="switch" />
-        <label class="form-check-label" for="split">1 arquivo/recurso</label>
+      <div class="d-flex flex-wrap gap-2 mt-2">
+        <button class="btn btn-sm btn-outline-info flex-fill" @click="validate">Validar</button>
+        <button class="btn btn-sm btn-outline-light flex-fill" @click="copy">Copiar</button>
+        <button class="btn btn-sm btn-success flex-fill" @click="save">Salvar…</button>
       </div>
-
-      <span class="text-secondary small ms-auto">
-        {{ output.resourceCount }} recurso(s) · {{ output.files.length }} arquivo(s)
-      </span>
-      <button class="btn btn-sm btn-outline-info" @click="validate">Validar</button>
-      <button class="btn btn-sm btn-outline-light" @click="copy">Copiar</button>
-      <button class="btn btn-sm btn-success" @click="save">Salvar…</button>
     </div>
 
     <!-- Inline validation strip -->

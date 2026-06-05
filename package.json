@@ -1,16 +1,22 @@
 {
   "name": "k8s-generator",
   "version": "0.1.0",
-  "description": "Gerador de manifestos Kubernetes (Deployment, Service, Ingress, ConfigMap, ExternalSecret, HPA, CronJob, PVC) com saída em YAML, Kustomize e Helm",
+  "description": "Gerador de manifestos Kubernetes (workloads, rede, config, segurança, Argo/GitOps) com saída em YAML, Kustomize e Helm",
   "author": "rafael",
   "license": "MIT",
+  "homepage": "https://gitea.homelab-cloud.com/admin/k8s-generator",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
-    "test": "node --test \"test/**/*.test.mjs\""
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "dist": "npm run build && electron-builder",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:dir": "npm run build && electron-builder --dir"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"
@@ -19,7 +25,39 @@
     "@vitejs/plugin-vue": "^5.2.1",
     "bootstrap": "^5.3.3",
     "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
     "vue": "^3.5.13"
+  },
+  "build": {
+    "appId": "com.homelab.k8sgenerator",
+    "productName": "k8s-generator",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Development",
+      "maintainer": "rafael <assinaturashome2026@gmail.com>"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.developer-tools"
+    }
   }
 }
