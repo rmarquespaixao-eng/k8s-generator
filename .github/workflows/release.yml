@@ -1,0 +1,55 @@
+name: Release (multiplataforma)
+
+# Dispara ao empurrar uma tag vX.Y.Z. Builda NATIVO em runners do GitHub
+# (Linux, Windows, macOS) e anexa os instaladores ao GitHub Release da tag.
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            builder: --linux
+            globs: release/*.AppImage release/*.deb
+          - os: windows-latest
+            builder: --win
+            globs: release/*.exe
+          - os: macos-latest
+            builder: --mac
+            globs: release/*.dmg release/*.zip
+    runs-on: ${{ matrix.os }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false" # sem assinatura de código
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Testes
+        run: npm test
+
+      - name: Bundle (electron-vite)
+        run: npm run build
+
+      - name: Empacota
+        run: npx electron-builder ${{ matrix.builder }} --publish never
+
+      - name: Anexa ao GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.globs }}
+          fail_on_unmatched_files: false

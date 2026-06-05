@@ -1,12 +1,11 @@
-name: Release (matriz nativa Linux + Windows -> publica no Gitea)
+name: Release (Linux -> publica no Gitea)
 
-# Disparo manual informando a versão (X.Y.Z). Estágios:
-#   meta     (linux) valida versão / tag, resolve o commit
-#   build    (matriz ubuntu + windows) empacota NATIVO e publica como artifact
-#   publish  (linux) baixa os artifacts, cria o Release vX.Y.Z e sobe os assets
+# Disparo manual informando a versão (X.Y.Z). Roda no runner Linux:
+#   valida versão/tag -> testa -> empacota AppImage + deb -> cria Release vX.Y.Z
+#   e sobe os artefatos como assets (API interna http://gitea:3000).
 #
-# Só o runner Linux fala com a API do Gitea (http://gitea:3000) — o runner Windows
-# apenas produz o .exe e entrega via artifact. macOS não é alvo (sem runner mac).
+# Só Linux: o homelab tem apenas runner ubuntu. Para Windows/macOS, use o mirror
+# público no GitHub (.github/workflows/release.yml, runners nativos grátis).
 on:
   workflow_dispatch:
     inputs:
@@ -15,19 +14,18 @@ on:
         required: true
 
 jobs:
-  meta:
+  release:
     runs-on: ubuntu-latest
-    outputs:
-      v: ${{ steps.m.outputs.v }}
-      tag: ${{ steps.m.outputs.tag }}
-      sha: ${{ steps.m.outputs.sha }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: main
-      - name: Valida versão
-        id: m
+
+      - name: Meta (valida versão)
+        id: meta
         env:
           IN: ${{ github.event.inputs.version }}
         run: |
@@ -36,28 +34,6 @@ jobs:
           if git rev-parse "$TAG" >/dev/null 2>&1; then echo "::error::tag $TAG já existe"; exit 1; fi
           { echo "v=$V"; echo "tag=$TAG"; echo "sha=$(git rev-parse HEAD)"; } >> "$GITHUB_OUTPUT"
           echo ">> lançando v${V} no commit $(git rev-parse --short HEAD)"
-
-  build:
-    needs: meta
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux
-            builder: --linux
-            artifact: dist-linux
-          - os: windows-latest
-            platform: windows
-            builder: --win
-            artifact: dist-windows
-    runs-on: ${{ matrix.os }}
-    env:
-      CSC_IDENTITY_AUTO_DISCOVERY: "false" # sem assinatura de código
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
 
       - uses: actions/setup-node@v4
         with:
@@ -70,46 +46,25 @@ jobs:
         run: npm test
 
       - name: Versão dos artefatos (sem commit)
-        run: npm version "${{ needs.meta.outputs.v }}" --no-git-tag-version --allow-same-version
+        run: npm version "${{ steps.meta.outputs.v }}" --no-git-tag-version --allow-same-version
 
       - name: Bundle (electron-vite)
         run: npm run build
 
-      - name: Empacota (${{ matrix.platform }})
-        run: npx electron-builder ${{ matrix.builder }} --publish never
+      - name: Empacota Linux (AppImage + deb)
+        run: npx electron-builder --linux --publish never
 
-      - name: Publica artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact }}
-          if-no-files-found: error
-          path: |
-            release/*.AppImage
-            release/*.deb
-            release/*.exe
-
-  publish:
-    needs: [meta, build]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: main
-
-      - name: Baixa os artifacts dos builds
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
+      - name: Lista artefatos
+        run: ls -lh release || true
 
       - name: Cria Release no Gitea
         id: rel
         env:
           TOKEN: ${{ secrets.CI_PUSH_TOKEN }}
           REPO: ${{ github.repository }}
-          TAG: ${{ needs.meta.outputs.tag }}
-          SHA: ${{ needs.meta.outputs.sha }}
-          V: ${{ needs.meta.outputs.v }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          SHA: ${{ steps.meta.outputs.sha }}
+          V: ${{ steps.meta.outputs.v }}
         run: |
           CHANGELOG=$(git log --no-merges --format='- %s (%h)' -n 30 || true)
           [ -n "$CHANGELOG" ] || CHANGELOG="- release ${V}"
@@ -129,13 +84,14 @@ jobs:
           ID: ${{ steps.rel.outputs.id }}
         run: |
           count=0
-          while IFS= read -r f; do
+          for f in release/*.AppImage release/*.deb; do
+            [ -e "$f" ] || continue
             echo ">> upload $(basename "$f")"
             curl -fsS -X POST \
               "http://gitea:3000/api/v1/repos/${REPO}/releases/${ID}/assets?name=$(basename "$f")" \
               -H "Authorization: token ${TOKEN}" \
               -F "attachment=@${f}" >/dev/null
             count=$((count + 1))
-          done < <(find dist -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.exe' \))
+          done
           [ "$count" -gt 0 ] || { echo "::error::nenhum artefato encontrado"; exit 1; }
-          echo "✓ ${count} asset(s) enviados ao release ${{ needs.meta.outputs.tag }}"
+          echo "✓ ${count} asset(s) enviados ao release ${{ steps.meta.outputs.tag }}"
