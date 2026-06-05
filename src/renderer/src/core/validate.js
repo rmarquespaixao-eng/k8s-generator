@@ -89,9 +89,31 @@ export function validateSpec(spec) {
     add('warning', 'pvc.mountPath', 'PVC sem mountPath — o volume não será montado no container.')
   }
 
+  // --- Argo Rollouts ---
+  if (spec.rollout.enabled) {
+    if (d.enabled) add('warning', 'rollout', 'Deployment e Rollout habilitados juntos — o Rollout substitui o Deployment; mantenha só um.')
+    if (spec.rollout.strategy === 'canary' && !(spec.rollout.canarySteps || []).some((s) => s.weight !== '')) {
+      add('warning', 'rollout', 'Rollout canary sem steps de peso definidos.')
+    }
+  }
+
+  // --- Argo CD Application ---
+  if (spec.argoApp.enabled) {
+    if (!spec.argoApp.repoURL) add('error', 'argoApp.repoURL', 'Application sem repoURL.')
+    if (spec.argoApp.sourceType === 'helm' && !spec.argoApp.chart && !spec.argoApp.path) {
+      add('warning', 'argoApp', 'Source Helm sem chart nem path definido.')
+    }
+  }
+  if (spec.argoAppSet.enabled && spec.argoAppSet.generatorType === 'list' && !(spec.argoAppSet.elements || []).some((e) => e.name)) {
+    add('warning', 'argoAppSet', 'ApplicationSet com generator list vazio.')
+  }
+
   // --- nothing enabled ---
-  const anyWorkload = d.enabled || spec.cronjob.enabled || spec.job.enabled
-  if (!anyWorkload) add('warning', 'workload', 'Nenhum workload habilitado (Deployment/StatefulSet/DaemonSet, CronJob ou Job).')
+  const anyWorkload =
+    d.enabled || spec.cronjob.enabled || spec.job.enabled || spec.rollout.enabled || spec.argoWorkflow.enabled
+  if (!anyWorkload && !spec.argoApp.enabled && !spec.argoAppSet.enabled) {
+    add('warning', 'workload', 'Nenhum workload habilitado (Deployment/StatefulSet/DaemonSet, CronJob, Job, Rollout, Workflow ou Application).')
+  }
 
   return out
 }

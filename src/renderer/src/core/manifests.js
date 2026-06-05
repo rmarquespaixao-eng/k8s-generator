@@ -15,6 +15,9 @@ import { pdb } from './generators/pdb.js'
 import { hpa } from './generators/hpa.js'
 import { cronjob } from './generators/cronjob.js'
 import { job } from './generators/job.js'
+import { rollout } from './generators/rollout.js'
+import { argoWorkflow } from './generators/workflow.js'
+import { argoApplication, argoApplicationSet } from './generators/argo.js'
 
 // Ordered so cluster/identity/config come before the workload, then exposure & policy.
 const GENERATORS = [
@@ -29,13 +32,17 @@ const GENERATORS = [
   { key: 'resourcequota', fn: resourceQuota },
   { key: 'limitrange', fn: limitRange },
   { key: 'workload', fn: deployment },
+  { key: 'rollout', fn: rollout },
   { key: 'service', fn: service },
   { key: 'ingress', fn: ingress },
   { key: 'networkpolicy', fn: networkPolicy },
   { key: 'pdb', fn: pdb },
   { key: 'hpa', fn: hpa },
   { key: 'cronjob', fn: cronjob },
-  { key: 'job', fn: job }
+  { key: 'job', fn: job },
+  { key: 'workflow', fn: argoWorkflow },
+  { key: 'application', fn: argoApplication },
+  { key: 'applicationset', fn: argoApplicationSet }
 ]
 
 /**

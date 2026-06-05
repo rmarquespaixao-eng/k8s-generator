@@ -246,6 +246,71 @@ test('validateSpec is clean for a sane default + service', () => {
   assert.equal(errors.length, 0)
 })
 
+test('Argo CD Application: git and helm sources', () => {
+  const s = defaultSpec()
+  s.argoApp.enabled = true
+  s.argoApp.repoURL = 'git@gitea:admin/app.git'
+  s.argoApp.path = 'k8s/'
+  s.argoApp.syncAutomated = true
+  s.argoApp.createNamespace = true
+  let app = buildManifests(s).find((x) => x.kind === 'Application').resource
+  assert.equal(app.apiVersion, 'argoproj.io/v1alpha1')
+  assert.equal(app.spec.source.path, 'k8s/')
+  assert.deepEqual(app.spec.syncPolicy.automated, { prune: true, selfHeal: true })
+  assert.ok(app.spec.syncPolicy.syncOptions.includes('CreateNamespace=true'))
+
+  s.argoApp.sourceType = 'helm'
+  s.argoApp.chart = 'my-chart'
+  s.argoApp.helmParameters = [{ key: 'image.tag', value: '1.2.3' }]
+  app = buildManifests(s).find((x) => x.kind === 'Application').resource
+  assert.equal(app.spec.source.chart, 'my-chart')
+  assert.equal(app.spec.source.helm.parameters[0].name, 'image.tag')
+})
+
+test('Argo Rollout reuses the pod template and builds canary steps', () => {
+  const s = defaultSpec()
+  s.rollout.enabled = true
+  s.rollout.canarySteps = [{ weight: '20', pauseSeconds: '30' }, { weight: '50', pauseSeconds: '' }]
+  const r = buildManifests(s).find((x) => x.kind === 'Rollout').resource
+  assert.equal(r.spec.template.spec.containers[0].image, s.deployment.image)
+  assert.deepEqual(r.spec.strategy.canary.steps[0], { setWeight: 20 })
+  assert.deepEqual(r.spec.strategy.canary.steps[1], { pause: { duration: '30s' } })
+  assert.deepEqual(r.spec.strategy.canary.steps[3], { pause: {} })
+})
+
+test('Argo Workflow and CronWorkflow', () => {
+  const s = defaultSpec()
+  s.argoWorkflow.enabled = true
+  let wf = buildManifests(s).find((x) => x.kind === 'Workflow').resource
+  assert.equal(wf.spec.entrypoint, 'main')
+  assert.equal(wf.spec.templates[0].container.image, s.argoWorkflow.image)
+  s.argoWorkflow.kind = 'CronWorkflow'
+  wf = buildManifests(s).find((x) => x.kind === 'CronWorkflow').resource
+  assert.ok(wf.spec.schedule)
+  assert.equal(wf.spec.workflowSpec.entrypoint, 'main')
+})
+
+test('round-trip: Argo Application + Rollout + Workflow', () => {
+  const s = defaultSpec()
+  s.deployment.enabled = false
+  s.rollout.enabled = true
+  s.rollout.canarySteps = [{ weight: '25', pauseSeconds: '10' }]
+  s.argoApp.enabled = true
+  s.argoApp.repoURL = 'git@gitea:admin/app.git'
+  s.argoApp.path = 'manifests/'
+  s.argoWorkflow.enabled = true
+  s.argoWorkflow.kind = 'CronWorkflow'
+  const back = parseManifests(buildOutput(s).preview)
+  assert.equal(back.rollout.enabled, true)
+  assert.equal(back.rollout.canarySteps[0].weight, '25')
+  assert.equal(back.rollout.canarySteps[0].pauseSeconds, '10')
+  assert.equal(back.argoApp.enabled, true)
+  assert.equal(back.argoApp.repoURL, 'git@gitea:admin/app.git')
+  assert.equal(back.argoApp.path, 'manifests/')
+  assert.equal(back.argoWorkflow.enabled, true)
+  assert.equal(back.argoWorkflow.kind, 'CronWorkflow')
+})
+
 test('highlightYaml wraps keys and escapes HTML', () => {
   const html = highlightYaml('kind: Deployment\n# comment\nreplicas: 3\n')
   assert.match(html, /class="hl-key"/)

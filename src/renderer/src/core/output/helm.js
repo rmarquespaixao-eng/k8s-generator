@@ -104,7 +104,7 @@ export function buildHelm(spec) {
   for (const m of manifests) {
     files.push({
       path: `${name}/templates/${m.key}.yaml`,
-      content: toTemplate(m.resource, m.key === 'workload')
+      content: toTemplate(m.resource, m.key === 'workload' || m.key === 'rollout')
     })
   }
 

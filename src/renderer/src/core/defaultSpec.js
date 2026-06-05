@@ -134,6 +134,50 @@ export function defaultSpec() {
       defaultLimitCpu: '500m',
       defaultLimitMemory: '256Mi'
     },
+    rollout: {
+      enabled: false,
+      strategy: 'canary', // canary | blueGreen
+      canarySteps: [{ weight: '20', pauseSeconds: '' }], // pauseSeconds '' = pausa manual
+      activeService: '', // blueGreen
+      previewService: '',
+      autoPromotion: true
+    },
+    argoApp: {
+      enabled: false,
+      project: 'default',
+      sourceType: 'git', // git | helm
+      repoURL: '',
+      targetRevision: 'HEAD',
+      path: '.',
+      chart: '', // helm repo chart (alternativa ao path)
+      helmParameters: [], // [{ key, value }] -> source.helm.parameters
+      destServer: 'https://kubernetes.default.svc',
+      destNamespace: '',
+      syncAutomated: true,
+      prune: true,
+      selfHeal: true,
+      createNamespace: false
+    },
+    argoAppSet: {
+      enabled: false,
+      project: 'default',
+      generatorType: 'list', // list | git | cluster
+      repoURL: '',
+      path: '.',
+      targetRevision: 'HEAD',
+      destServer: 'https://kubernetes.default.svc',
+      elements: [{ name: 'dev', namespace: 'dev' }], // list generator
+      gitDirectories: 'apps/*' // git generator path glob
+    },
+    argoWorkflow: {
+      enabled: false,
+      kind: 'Workflow', // Workflow | CronWorkflow
+      schedule: '0 * * * *',
+      entrypoint: 'main',
+      image: 'busybox:latest',
+      command: 'sh -c "echo hello"',
+      args: ''
+    },
     hpa: {
       enabled: false,
       minReplicas: 1,

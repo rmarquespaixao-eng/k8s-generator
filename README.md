@@ -15,6 +15,12 @@ formulário, com preview ao vivo e exportação em **YAML cru**, **Kustomize** o
 | Escala & confiabilidade | HorizontalPodAutoscaler, PodDisruptionBudget, PVC |
 | Limites | ResourceQuota, LimitRange |
 | Cluster | Namespace |
+| Argo / GitOps | Argo CD Application & ApplicationSet, Argo Rollouts (Rollout canary/blue-green), Argo Workflows (Workflow/CronWorkflow) |
+
+Argo CD Application aceita source **Git** (repoURL + path) ou **Helm** (chart/path
++ parameters), com `syncPolicy` (automated/prune/selfHeal) e `CreateNamespace`.
+O Rollout reaproveita o pod template do Workload — só a estratégia de release é
+definida na sua seção.
 
 Pod-level avançado no workload: `initContainers`, volumes extras
 (emptyDir/hostPath/configMap/secret), `nodeSelector`, `tolerations`,

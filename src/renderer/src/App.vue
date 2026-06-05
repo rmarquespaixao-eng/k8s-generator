@@ -16,6 +16,10 @@ import ScalingForm from './components/forms/ScalingForm.vue'
 import PdbForm from './components/forms/PdbForm.vue'
 import StorageForm from './components/forms/StorageForm.vue'
 import QuotaForm from './components/forms/QuotaForm.vue'
+import RolloutForm from './components/forms/RolloutForm.vue'
+import ArgoAppForm from './components/forms/ArgoAppForm.vue'
+import ArgoAppSetForm from './components/forms/ArgoAppSetForm.vue'
+import ArgoWorkflowForm from './components/forms/ArgoWorkflowForm.vue'
 import PreviewPane from './components/PreviewPane.vue'
 import ImportModal from './components/ImportModal.vue'
 import PresetsMenu from './components/PresetsMenu.vue'
@@ -41,10 +45,14 @@ const sections = [
   { id: 'scaling', label: 'Autoscaling', icon: '📈', comp: ScalingForm, cat: 'Escala & Confiabilidade', on: (s) => s.hpa.enabled },
   { id: 'pdb', label: 'PodDisruptionBudget', icon: '♻️', comp: PdbForm, cat: 'Escala & Confiabilidade', on: (s) => s.pdb.enabled },
   { id: 'storage', label: 'Storage', icon: '💾', comp: StorageForm, cat: 'Escala & Confiabilidade', on: (s) => s.pvc.enabled },
-  { id: 'quota', label: 'Quotas & Limits', icon: '📊', comp: QuotaForm, cat: 'Limites', on: (s) => s.resourceQuota.enabled || s.limitRange.enabled }
+  { id: 'quota', label: 'Quotas & Limits', icon: '📊', comp: QuotaForm, cat: 'Limites', on: (s) => s.resourceQuota.enabled || s.limitRange.enabled },
+  { id: 'argoapp', label: 'CD Application', icon: '🐙', comp: ArgoAppForm, cat: 'Argo / GitOps', on: (s) => s.argoApp.enabled },
+  { id: 'argoappset', label: 'CD ApplicationSet', icon: '🗂️', comp: ArgoAppSetForm, cat: 'Argo / GitOps', on: (s) => s.argoAppSet.enabled },
+  { id: 'rollout', label: 'Rollout', icon: '🎢', comp: RolloutForm, cat: 'Argo / GitOps', on: (s) => s.rollout.enabled },
+  { id: 'workflow', label: 'Workflow', icon: '🔀', comp: ArgoWorkflowForm, cat: 'Argo / GitOps', on: (s) => s.argoWorkflow.enabled }
 ]
 
-const categories = ['Geral', 'Workload', 'Rede', 'Config', 'Segurança', 'Escala & Confiabilidade', 'Limites']
+const categories = ['Geral', 'Workload', 'Rede', 'Config', 'Segurança', 'Escala & Confiabilidade', 'Limites', 'Argo / GitOps']
 const grouped = computed(() => categories.map((cat) => ({ cat, items: sections.filter((s) => s.cat === cat) })))
 const collapsed = reactive({})
 
