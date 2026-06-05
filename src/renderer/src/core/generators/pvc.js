@@ -3,6 +3,8 @@ import { commonLabels } from '../util.js'
 export function pvc(spec) {
   const p = spec.pvc
   if (!p.enabled) return null
+  // A StatefulSet manages its own PVCs via volumeClaimTemplates.
+  if (spec.deployment.enabled && spec.deployment.kind === 'StatefulSet') return null
 
   return {
     apiVersion: 'v1',

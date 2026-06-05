@@ -1,22 +1,41 @@
+import { namespace } from './generators/namespace.js'
+import { serviceAccount } from './generators/serviceAccount.js'
+import { role, roleBinding } from './generators/rbac.js'
+import { configMap } from './generators/configmap.js'
+import { secret } from './generators/secret.js'
+import { externalSecret } from './generators/externalSecret.js'
+import { pvc } from './generators/pvc.js'
+import { resourceQuota } from './generators/resourceQuota.js'
+import { limitRange } from './generators/limitRange.js'
 import { deployment } from './generators/deployment.js'
 import { service } from './generators/service.js'
 import { ingress } from './generators/ingress.js'
-import { configMap } from './generators/configmap.js'
-import { externalSecret } from './generators/externalSecret.js'
+import { networkPolicy } from './generators/networkPolicy.js'
+import { pdb } from './generators/pdb.js'
 import { hpa } from './generators/hpa.js'
 import { cronjob } from './generators/cronjob.js'
-import { pvc } from './generators/pvc.js'
+import { job } from './generators/job.js'
 
-// Ordered so dependencies (config/secret/storage) come before the workload.
+// Ordered so cluster/identity/config come before the workload, then exposure & policy.
 const GENERATORS = [
+  { key: 'namespace', fn: namespace },
+  { key: 'serviceaccount', fn: serviceAccount },
+  { key: 'role', fn: role },
+  { key: 'rolebinding', fn: roleBinding },
   { key: 'configmap', fn: configMap },
+  { key: 'secret', fn: secret },
   { key: 'externalsecret', fn: externalSecret },
   { key: 'pvc', fn: pvc },
-  { key: 'deployment', fn: deployment },
+  { key: 'resourcequota', fn: resourceQuota },
+  { key: 'limitrange', fn: limitRange },
+  { key: 'workload', fn: deployment },
   { key: 'service', fn: service },
   { key: 'ingress', fn: ingress },
+  { key: 'networkpolicy', fn: networkPolicy },
+  { key: 'pdb', fn: pdb },
   { key: 'hpa', fn: hpa },
-  { key: 'cronjob', fn: cronjob }
+  { key: 'cronjob', fn: cronjob },
+  { key: 'job', fn: job }
 ]
 
 /**

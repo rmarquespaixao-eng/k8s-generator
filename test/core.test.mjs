@@ -7,6 +7,8 @@ import { buildManifests } from '../src/renderer/src/core/manifests.js'
 import { buildOutput } from '../src/renderer/src/core/output/index.js'
 import { tokenize, joinCommand } from '../src/renderer/src/core/generators/_shared.js'
 import { parseManifests } from '../src/renderer/src/core/parse.js'
+import { validateSpec } from '../src/renderer/src/core/validate.js'
+import { highlightYaml } from '../src/renderer/src/core/highlight.js'
 
 function fullSpec() {
   const s = defaultSpec()
@@ -65,18 +67,25 @@ test('kustomize output lists every resource', () => {
   assert.equal(k.resources.length, out.files.length - 1)
 })
 
-test('helm chart has Chart.yaml, values.yaml and templates', () => {
+test('helm chart has Chart.yaml, values.yaml and workload template', () => {
   const s = fullSpec()
+  s.hpa.enabled = false // keep replicas on the workload so it gets parameterized
   s.output.format = 'helm'
   const out = buildOutput(s)
   const paths = out.files.map((f) => f.path)
   assert.ok(paths.some((p) => p.endsWith('Chart.yaml')))
   assert.ok(paths.some((p) => p.endsWith('values.yaml')))
-  assert.ok(paths.some((p) => p.includes('templates/deployment.yaml')))
-  // values.yaml must parse
+  assert.ok(paths.some((p) => p.includes('templates/workload.yaml')))
+  // values.yaml must parse and carry the parameterized knobs
   const v = yaml.load(out.files.find((f) => f.path.endsWith('values.yaml')).content)
   assert.equal(v.fullnameOverride, 'demo')
-  assert.equal(v.autoscaling.enabled, true)
+  assert.equal(v.namespace, 'default')
+  assert.ok(v.image.repository)
+  // workload template references the values, not literal image/replicas
+  const wl = out.files.find((f) => f.path.includes('templates/workload.yaml')).content
+  assert.match(wl, /\.Values\.image\.repository/)
+  assert.match(wl, /\.Values\.replicaCount/)
+  assert.match(wl, /include "app\.labels"/)
 })
 
 test('joinCommand quotes tokens with spaces', () => {
@@ -112,4 +121,135 @@ test('round-trip: generate YAML -> parse back preserves the spec', () => {
 
 test('parseManifests rejects empty / non-k8s input', () => {
   assert.throws(() => parseManifests('just: a map\n'))
+})
+
+function everythingSpec() {
+  const s = defaultSpec()
+  s.meta.name = 'full'
+  s.meta.emitNamespace = true
+  s.job.enabled = true
+  s.service.enabled = true
+  s.ingress.enabled = true
+  s.configMap.enabled = true
+  s.secret.enabled = true
+  s.secret.data = [{ key: 'PW', value: 's3cr3t' }]
+  s.externalSecret.enabled = true
+  s.externalSecret.data = [{ secretKey: 'X', remoteKey: 'r', remoteProperty: '' }]
+  s.serviceAccount.enabled = true
+  s.rbac.enabled = true
+  s.networkPolicy.enabled = true
+  s.networkPolicy.allowPorts = [{ key: '8080' }]
+  s.pdb.enabled = true
+  s.resourceQuota.enabled = true
+  s.limitRange.enabled = true
+  s.hpa.enabled = true
+  s.cronjob.enabled = true
+  s.pvc.enabled = true
+  return s
+}
+
+test('every resource enabled produces parseable, well-formed docs', () => {
+  const out = buildOutput(everythingSpec())
+  const docs = yaml.loadAll(out.preview)
+  const kinds = docs.map((d) => d.kind)
+  for (const k of [
+    'Namespace', 'ServiceAccount', 'Role', 'RoleBinding', 'ConfigMap', 'Secret',
+    'ExternalSecret', 'PersistentVolumeClaim', 'ResourceQuota', 'LimitRange',
+    'Deployment', 'Service', 'Ingress', 'NetworkPolicy', 'PodDisruptionBudget',
+    'HorizontalPodAutoscaler', 'CronJob', 'Job'
+  ]) {
+    assert.ok(kinds.includes(k), `missing kind ${k}`)
+  }
+  for (const d of docs) assert.ok(d.apiVersion && d.kind && d.metadata?.name)
+})
+
+test('StatefulSet uses volumeClaimTemplates and a headless service; no standalone PVC', () => {
+  const s = everythingSpec()
+  s.deployment.kind = 'StatefulSet'
+  const m = buildManifests(s)
+  const sts = m.find((x) => x.kind === 'StatefulSet')
+  assert.ok(sts.resource.spec.volumeClaimTemplates?.length)
+  assert.equal(sts.resource.spec.serviceName, 'full')
+  assert.equal(m.find((x) => x.kind === 'PersistentVolumeClaim'), undefined)
+  const svc = m.find((x) => x.kind === 'Service')
+  assert.equal(svc.resource.spec.clusterIP, 'None')
+})
+
+test('DaemonSet has no replicas', () => {
+  const s = defaultSpec()
+  s.deployment.kind = 'DaemonSet'
+  const ds = buildManifests(s).find((x) => x.kind === 'DaemonSet')
+  assert.equal(ds.resource.spec.replicas, undefined)
+})
+
+test('securityContext, nodeSelector and tolerations land in the pod spec', () => {
+  const s = defaultSpec()
+  s.deployment.securityContext.enabled = true
+  s.deployment.nodeSelector = [{ key: 'disktype', value: 'ssd' }]
+  s.deployment.tolerations = [{ key: 'gpu', operator: 'Equal', value: 'true', effect: 'NoSchedule' }]
+  s.deployment.spreadAcrossNodes = true
+  const pod = buildManifests(s).find((x) => x.kind === 'Deployment').resource.spec.template.spec
+  assert.equal(pod.securityContext.runAsNonRoot, true)
+  assert.equal(pod.nodeSelector.disktype, 'ssd')
+  assert.equal(pod.tolerations[0].key, 'gpu')
+  assert.ok(pod.affinity.podAntiAffinity)
+  assert.deepEqual(pod.containers[0].securityContext.capabilities.drop, ['ALL'])
+})
+
+test('RBAC role rules parse CSV fields; binding targets the ServiceAccount', () => {
+  const s = defaultSpec()
+  s.serviceAccount.enabled = true
+  s.rbac.enabled = true
+  s.rbac.rules = [{ apiGroups: 'apps,', resources: 'deployments,pods', verbs: 'get,list' }]
+  const m = buildManifests(s)
+  const role = m.find((x) => x.kind === 'Role')
+  assert.deepEqual(role.resource.rules[0].resources, ['deployments', 'pods'])
+  assert.deepEqual(role.resource.rules[0].verbs, ['get', 'list'])
+  const binding = m.find((x) => x.kind === 'RoleBinding')
+  assert.equal(binding.resource.subjects[0].name, 'my-app')
+})
+
+test('round-trip with StatefulSet + securityContext + pod-level', () => {
+  const s = everythingSpec()
+  s.deployment.kind = 'StatefulSet'
+  s.deployment.securityContext.enabled = true
+  s.deployment.nodeSelector = [{ key: 'zone', value: 'a' }]
+  const back = parseManifests(buildOutput(s).preview)
+  assert.equal(back.deployment.kind, 'StatefulSet')
+  assert.equal(back.deployment.securityContext.enabled, true)
+  assert.equal(back.deployment.nodeSelector[0].key, 'zone')
+  assert.equal(back.pvc.enabled, true) // recovered from volumeClaimTemplates
+  assert.equal(back.serviceAccount.enabled, true)
+  assert.equal(back.rbac.enabled, true)
+  assert.equal(back.networkPolicy.enabled, true)
+  assert.equal(back.pdb.enabled, true)
+  assert.equal(back.secret.enabled, true)
+  assert.equal(back.meta.emitNamespace, true)
+})
+
+test('validateSpec flags invalid name, ingress without TLS, and limit < request', () => {
+  const s = defaultSpec()
+  s.meta.name = 'Bad_Name'
+  s.ingress.enabled = true
+  s.ingress.tls.enabled = false
+  s.deployment.resources.limits.cpu = '50m'
+  s.deployment.resources.requests.cpu = '100m'
+  const issues = validateSpec(s)
+  assert.ok(issues.some((i) => i.level === 'error' && i.field === 'meta.name'))
+  assert.ok(issues.some((i) => i.field === 'ingress.tls'))
+  assert.ok(issues.some((i) => i.field === 'deployment.resources'))
+})
+
+test('validateSpec is clean for a sane default + service', () => {
+  const s = defaultSpec()
+  const errors = validateSpec(s).filter((i) => i.level === 'error')
+  assert.equal(errors.length, 0)
+})
+
+test('highlightYaml wraps keys and escapes HTML', () => {
+  const html = highlightYaml('kind: Deployment\n# comment\nreplicas: 3\n')
+  assert.match(html, /class="hl-key"/)
+  assert.match(html, /class="hl-num"/)
+  assert.match(html, /class="hl-comment"/)
+  assert.doesNotMatch(highlightYaml('a: <b>'), /<b>/)
 })

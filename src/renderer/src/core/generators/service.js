@@ -14,6 +14,11 @@ export function service(spec) {
     },
     spec: {
       type: s.type,
+      // Headless service for StatefulSet stable network identity.
+      clusterIP:
+        s.type === 'ClusterIP' && spec.deployment.enabled && spec.deployment.kind === 'StatefulSet'
+          ? 'None'
+          : undefined,
       selector: selectorLabels(spec.meta),
       ports: [
         {

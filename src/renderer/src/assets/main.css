@@ -34,7 +34,16 @@ body,
   color: var(--bs-body-color);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font-size: 0.9rem;
+}
+
+.app-nav .nav-link:hover {
+  background: var(--bs-secondary-bg);
 }
 
 .app-nav .nav-link.active {
@@ -80,4 +89,31 @@ body,
   display: grid;
   gap: 0.5rem;
   align-items: center;
+}
+
+/* YAML syntax highlight (preview pane is dark in both themes) */
+.hl-key {
+  color: #9cdcfe;
+}
+.hl-str {
+  color: #ce9178;
+}
+.hl-num {
+  color: #b5cea8;
+}
+.hl-bool {
+  color: #569cd6;
+}
+.hl-comment {
+  color: #6a9955;
+  font-style: italic;
+}
+.hl-doc {
+  color: #c586c0;
+}
+.hl-dash {
+  color: #808080;
+}
+.hl-tpl {
+  color: #dcdcaa;
 }

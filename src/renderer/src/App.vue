@@ -1,14 +1,21 @@
 <script setup>
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { defaultSpec } from './core/defaultSpec.js'
 import MetaForm from './components/forms/MetaForm.vue'
-import DeploymentForm from './components/forms/DeploymentForm.vue'
+import WorkloadForm from './components/forms/WorkloadForm.vue'
+import CronForm from './components/forms/CronForm.vue'
+import JobForm from './components/forms/JobForm.vue'
 import ServiceForm from './components/forms/ServiceForm.vue'
 import IngressForm from './components/forms/IngressForm.vue'
+import NetworkPolicyForm from './components/forms/NetworkPolicyForm.vue'
 import ConfigSecretForm from './components/forms/ConfigSecretForm.vue'
+import SecretForm from './components/forms/SecretForm.vue'
+import ServiceAccountForm from './components/forms/ServiceAccountForm.vue'
+import RbacForm from './components/forms/RbacForm.vue'
 import ScalingForm from './components/forms/ScalingForm.vue'
-import CronForm from './components/forms/CronForm.vue'
+import PdbForm from './components/forms/PdbForm.vue'
 import StorageForm from './components/forms/StorageForm.vue'
+import QuotaForm from './components/forms/QuotaForm.vue'
 import PreviewPane from './components/PreviewPane.vue'
 import ImportModal from './components/ImportModal.vue'
 import PresetsMenu from './components/PresetsMenu.vue'
@@ -16,54 +23,71 @@ import PresetsMenu from './components/PresetsMenu.vue'
 const spec = reactive(defaultSpec())
 const importOpen = ref(false)
 const toast = ref('')
+const theme = ref('dark')
 let toastTimer = null
 
 const sections = [
-  { id: 'meta', label: 'Aplicação', comp: MetaForm, flag: null },
-  { id: 'deployment', label: 'Deployment', comp: DeploymentForm, flag: 'deployment' },
-  { id: 'service', label: 'Service', comp: ServiceForm, flag: 'service' },
-  { id: 'ingress', label: 'Ingress', comp: IngressForm, flag: 'ingress' },
-  { id: 'config', label: 'Config & Secrets', comp: ConfigSecretForm, flag: 'configMap' },
-  { id: 'scaling', label: 'Autoscaling', comp: ScalingForm, flag: 'hpa' },
-  { id: 'cron', label: 'CronJob', comp: CronForm, flag: 'cronjob' },
-  { id: 'storage', label: 'Storage', comp: StorageForm, flag: 'pvc' }
+  { id: 'meta', label: 'Aplicação', icon: '📦', comp: MetaForm, cat: 'Geral', on: (s) => s.meta.emitNamespace },
+  { id: 'workload', label: 'Workload', icon: '🚀', comp: WorkloadForm, cat: 'Workload', on: (s) => s.deployment.enabled },
+  { id: 'cron', label: 'CronJob', icon: '⏰', comp: CronForm, cat: 'Workload', on: (s) => s.cronjob.enabled },
+  { id: 'job', label: 'Job', icon: '🔂', comp: JobForm, cat: 'Workload', on: (s) => s.job.enabled },
+  { id: 'service', label: 'Service', icon: '🔌', comp: ServiceForm, cat: 'Rede', on: (s) => s.service.enabled },
+  { id: 'ingress', label: 'Ingress', icon: '🌐', comp: IngressForm, cat: 'Rede', on: (s) => s.ingress.enabled },
+  { id: 'netpol', label: 'NetworkPolicy', icon: '🧱', comp: NetworkPolicyForm, cat: 'Rede', on: (s) => s.networkPolicy.enabled },
+  { id: 'config', label: 'Config & Secrets', icon: '⚙️', comp: ConfigSecretForm, cat: 'Config', on: (s) => s.configMap.enabled || s.externalSecret.enabled },
+  { id: 'secret', label: 'Secret', icon: '🔑', comp: SecretForm, cat: 'Config', on: (s) => s.secret.enabled },
+  { id: 'sa', label: 'ServiceAccount', icon: '👤', comp: ServiceAccountForm, cat: 'Segurança', on: (s) => s.serviceAccount.enabled },
+  { id: 'rbac', label: 'RBAC', icon: '🔐', comp: RbacForm, cat: 'Segurança', on: (s) => s.rbac.enabled },
+  { id: 'scaling', label: 'Autoscaling', icon: '📈', comp: ScalingForm, cat: 'Escala & Confiabilidade', on: (s) => s.hpa.enabled },
+  { id: 'pdb', label: 'PodDisruptionBudget', icon: '♻️', comp: PdbForm, cat: 'Escala & Confiabilidade', on: (s) => s.pdb.enabled },
+  { id: 'storage', label: 'Storage', icon: '💾', comp: StorageForm, cat: 'Escala & Confiabilidade', on: (s) => s.pvc.enabled },
+  { id: 'quota', label: 'Quotas & Limits', icon: '📊', comp: QuotaForm, cat: 'Limites', on: (s) => s.resourceQuota.enabled || s.limitRange.enabled }
 ]
+
+const categories = ['Geral', 'Workload', 'Rede', 'Config', 'Segurança', 'Escala & Confiabilidade', 'Limites']
+const grouped = computed(() => categories.map((cat) => ({ cat, items: sections.filter((s) => s.cat === cat) })))
+const collapsed = reactive({})
 
 const active = ref('meta')
 const current = computed(() => sections.find((s) => s.id === active.value))
 
-function isOn(flag) {
-  if (flag === 'configMap') return spec.configMap.enabled || spec.externalSecret.enabled
-  return flag ? spec[flag]?.enabled : false
-}
-
 function applySpec(next) {
   Object.assign(spec, next)
 }
-
 function reset() {
   applySpec(defaultSpec())
   notify('Formulário reiniciado')
 }
-
 function onImported(next) {
   applySpec(next)
   active.value = 'meta'
   notify('YAML importado')
 }
-
 function notify(msg) {
   toast.value = msg
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => (toast.value = ''), 2500)
 }
+function toggleTheme() {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark'
+  document.documentElement.setAttribute('data-bs-theme', theme.value)
+  localStorage.setItem('theme', theme.value)
+}
+
+onMounted(() => {
+  theme.value = localStorage.getItem('theme') || 'dark'
+  document.documentElement.setAttribute('data-bs-theme', theme.value)
+})
 </script>
 
 <template>
   <header class="d-flex align-items-center gap-2 px-3 py-2 border-bottom bg-body-tertiary">
-    <strong>k8s-generator</strong>
-    <span class="text-muted small">gerador de manifestos Kubernetes</span>
+    <span class="brand">⎈ k8s-generator</span>
+    <span class="text-muted small d-none d-lg-inline">gerador de manifestos Kubernetes</span>
     <div class="ms-auto d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-outline-secondary" :title="theme === 'dark' ? 'Tema claro' : 'Tema escuro'" @click="toggleTheme">
+        {{ theme === 'dark' ? '☀️' : '🌙' }}
+      </button>
       <button class="btn btn-sm btn-outline-secondary" @click="importOpen = true">Importar YAML</button>
       <PresetsMenu :spec="spec" @load="applySpec" @notify="notify" />
       <button class="btn btn-sm btn-outline-secondary" @click="reset">Reset</button>
@@ -72,17 +96,24 @@ function notify(msg) {
 
   <div class="app-body">
     <nav class="app-nav">
-      <div class="nav flex-column nav-pills py-2">
-        <button
-          v-for="s in sections"
-          :key="s.id"
-          class="nav-link text-start px-3"
-          :class="{ active: active === s.id }"
-          @click="active = s.id"
-        >
-          <span>{{ s.label }}</span>
-          <span v-if="s.flag && isOn(s.flag)" class="section-dot" title="habilitado"></span>
+      <div v-for="g in grouped" :key="g.cat" class="nav-group">
+        <button class="nav-group-header" @click="collapsed[g.cat] = !collapsed[g.cat]">
+          <span>{{ g.cat }}</span>
+          <span class="caret">{{ collapsed[g.cat] ? '▸' : '▾' }}</span>
         </button>
+        <div v-show="!collapsed[g.cat]">
+          <button
+            v-for="s in g.items"
+            :key="s.id"
+            class="nav-link text-start"
+            :class="{ active: active === s.id }"
+            @click="active = s.id"
+          >
+            <span class="nav-ico">{{ s.icon }}</span>
+            <span class="flex-grow-1">{{ s.label }}</span>
+            <span v-if="s.on(spec)" class="section-dot" title="habilitado"></span>
+          </button>
+        </div>
       </div>
     </nav>
 
@@ -94,11 +125,34 @@ function notify(msg) {
   </div>
 
   <ImportModal v-model="importOpen" @imported="onImported" />
-
   <div v-if="toast" class="app-toast">{{ toast }}</div>
 </template>
 
 <style scoped>
+.brand {
+  font-weight: 700;
+}
+.nav-group {
+  border-bottom: 1px solid var(--bs-border-color);
+}
+.nav-group-header {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--bs-secondary-color);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  padding: 0.5rem 0.75rem 0.35rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.nav-ico {
+  width: 1.3rem;
+  text-align: center;
+}
 .app-toast {
   position: fixed;
   bottom: 1rem;

@@ -6,23 +6,28 @@ formulário, com preview ao vivo e exportação em **YAML cru**, **Kustomize** o
 
 ## Recursos suportados
 
-| Recurso | apiVersion |
+| Categoria | Recursos |
 |---|---|
-| Deployment | `apps/v1` |
-| Service | `v1` |
-| Ingress | `networking.k8s.io/v1` |
-| ConfigMap | `v1` |
-| ExternalSecret | `external-secrets.io/v1` |
-| HorizontalPodAutoscaler | `autoscaling/v2` |
-| CronJob | `batch/v1` |
-| PersistentVolumeClaim | `v1` |
+| Workload | Deployment / StatefulSet / DaemonSet (seletor de tipo), CronJob, Job |
+| Rede | Service (headless automático p/ StatefulSet), Ingress, NetworkPolicy |
+| Config | ConfigMap, Secret nativo, ExternalSecret (`external-secrets.io/v1`) |
+| Segurança | ServiceAccount, Role/ClusterRole + RoleBinding/ClusterRoleBinding |
+| Escala & confiabilidade | HorizontalPodAutoscaler, PodDisruptionBudget, PVC |
+| Limites | ResourceQuota, LimitRange |
+| Cluster | Namespace |
 
-Cada recurso é ligado/desligado por um switch. O Deployment cabeia
-automaticamente:
+Pod-level avançado no workload: `initContainers`, volumes extras
+(emptyDir/hostPath/configMap/secret), `nodeSelector`, `tolerations`,
+podAntiAffinity (spread), `securityContext` (pod + container), startup probe,
+`imagePullSecrets` e annotations de pod.
 
-- `envFrom` → ConfigMap e/ou Secret do ExternalSecret (quando ligados);
-- `volumeMounts`/`volumes` → PVC (quando ligado);
-- omite `replicas` quando o HPA está ligado (pra não brigar com o autoscaler).
+Cada recurso é ligado/desligado por um switch. O workload cabeia automaticamente:
+
+- `envFrom` → ConfigMap, Secret nativo e/ou Secret do ExternalSecret (quando ligados);
+- `volumeMounts`/`volumes` → PVC (Deployment/DaemonSet) ou `volumeClaimTemplates` (StatefulSet);
+- `serviceAccountName` quando o ServiceAccount está ligado;
+- omite `replicas` quando o HPA está ligado (pra não brigar com o autoscaler);
+- `scaleTargetRef` do HPA segue o tipo do workload (Deployment/StatefulSet).
 
 ## Formatos de saída
 
@@ -42,6 +47,10 @@ automaticamente:
 - **Validar** — roda `kubectl apply --dry-run=client` sobre o YAML/Kustomize
   gerado (validação de schema offline, sem precisar de cluster). Requer `kubectl`
   no `PATH`; se ausente, o app avisa em vez de quebrar.
+- **Validação inline** — barra no preview com erros/avisos em tempo real
+  (nome DNS-1123, limit < request, Ingress sem TLS, min > max do HPA, etc.).
+- **Tema claro/escuro** + preview com syntax highlight de YAML.
+- **Nav por categorias** colapsáveis com indicador de recurso habilitado.
 
 ## Desenvolvimento
 

@@ -35,7 +35,7 @@ export function hpa(spec) {
     spec: {
       scaleTargetRef: {
         apiVersion: 'apps/v1',
-        kind: 'Deployment',
+        kind: spec.deployment.kind === 'StatefulSet' ? 'StatefulSet' : 'Deployment',
         name: spec.meta.name
       },
       minReplicas: Number(h.minReplicas),
