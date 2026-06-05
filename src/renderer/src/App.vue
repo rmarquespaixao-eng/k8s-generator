@@ -1,6 +1,7 @@
 <script setup>
 import { reactive, ref, computed, onMounted } from 'vue'
 import { defaultSpec } from './core/defaultSpec.js'
+import { DOCS } from './core/docs.js'
 import MetaForm from './components/forms/MetaForm.vue'
 import WorkloadForm from './components/forms/WorkloadForm.vue'
 import CronForm from './components/forms/CronForm.vue'
@@ -110,22 +111,45 @@ onMounted(() => {
           <span class="caret">{{ collapsed[g.cat] ? '▸' : '▾' }}</span>
         </button>
         <div v-show="!collapsed[g.cat]">
-          <button
+          <div
             v-for="s in g.items"
             :key="s.id"
             class="nav-link text-start"
             :class="{ active: active === s.id }"
+            role="button"
             @click="active = s.id"
           >
             <span class="nav-ico">{{ s.icon }}</span>
             <span class="flex-grow-1">{{ s.label }}</span>
             <span v-if="s.on(spec)" class="section-dot" title="habilitado"></span>
-          </button>
+            <a
+              v-if="DOCS[s.id]"
+              class="doc-link"
+              :href="DOCS[s.id][0].url"
+              target="_blank"
+              rel="noopener"
+              title="Documentação oficial"
+              @click.stop
+              >↗</a
+            >
+          </div>
         </div>
       </div>
     </nav>
 
     <main class="app-form">
+      <div v-if="DOCS[active]" class="doc-banner">
+        <span class="me-2">📖 Documentação:</span>
+        <a
+          v-for="d in DOCS[active]"
+          :key="d.url"
+          :href="d.url"
+          target="_blank"
+          rel="noopener"
+          class="me-2"
+          >{{ d.label }} ↗</a
+        >
+      </div>
       <component :is="current.comp" :spec="spec" />
     </main>
 
@@ -160,6 +184,30 @@ onMounted(() => {
 .nav-ico {
   width: 1.3rem;
   text-align: center;
+}
+.doc-link {
+  opacity: 0;
+  text-decoration: none;
+  font-size: 0.85rem;
+  color: inherit;
+  padding: 0 0.2rem;
+}
+.nav-link:hover .doc-link {
+  opacity: 0.75;
+}
+.doc-link:hover {
+  opacity: 1 !important;
+}
+.doc-banner {
+  font-size: 0.82rem;
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.75rem;
+  border-radius: 0.375rem;
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+}
+.doc-banner a {
+  text-decoration: none;
 }
 .app-toast {
   position: fixed;

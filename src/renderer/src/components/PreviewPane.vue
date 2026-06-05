@@ -21,7 +21,23 @@ const output = computed(() => {
   }
 })
 
-const highlighted = computed(() => highlightYaml(output.value.preview))
+const tab = ref(0) // 0 = "Todos" (combinado); 1..N = arquivo individual
+
+const basename = (p) => p.split('/').pop()
+
+// Tab list: a combined view first, then one tab per generated file.
+const tabs = computed(() => [
+  { label: 'Todos', path: null },
+  ...output.value.files.map((f) => ({ label: basename(f.path), path: f.path }))
+])
+
+const activeContent = computed(() => {
+  const idx = Math.min(tab.value, tabs.value.length - 1)
+  if (idx <= 0) return output.value.preview
+  return output.value.files[idx - 1]?.content ?? output.value.preview
+})
+
+const highlighted = computed(() => highlightYaml(activeContent.value))
 const issues = computed(() => validateSpec(props.spec))
 const errors = computed(() => issues.value.filter((i) => i.level === 'error'))
 const warnings = computed(() => issues.value.filter((i) => i.level === 'warning'))
@@ -38,8 +54,9 @@ const validating = ref(false)
 const validateResult = ref(null)
 
 async function copy() {
-  await navigator.clipboard.writeText(output.value.preview)
-  emit('notify', 'Copiado para a área de transferência')
+  await navigator.clipboard.writeText(activeContent.value)
+  const which = tab.value <= 0 ? 'tudo' : basename(tabs.value[tab.value].path)
+  emit('notify', `Copiado (${which})`)
 }
 
 async function save() {
@@ -120,6 +137,19 @@ async function validate() {
       </li>
     </ul>
 
+    <div v-if="tabs.length > 1" class="file-tabs">
+      <button
+        v-for="(t, i) in tabs"
+        :key="i"
+        class="file-tab"
+        :class="{ active: Math.min(tab, tabs.length - 1) === i }"
+        :title="t.path || 'visão combinada'"
+        @click="tab = i"
+      >
+        {{ t.label }}
+      </button>
+    </div>
+
     <pre class="preview-code"><code v-html="highlighted"></code></pre>
   </section>
 
@@ -153,6 +183,35 @@ async function validate() {
 <style scoped>
 .preview-toolbar {
   background: #252526;
+}
+.file-tabs {
+  display: flex;
+  overflow-x: auto;
+  background: #252526;
+  border-bottom: 1px solid #333;
+  scrollbar-width: thin;
+}
+.file-tab {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #aaa;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  font-family: ui-monospace, monospace;
+  border-right: 1px solid #333;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.file-tab:hover {
+  color: #fff;
+  background: #2d2d2d;
+}
+.file-tab.active {
+  color: #fff;
+  background: #1e1e1e;
+  border-bottom-color: var(--bs-primary);
 }
 .issues-bar {
   display: flex;

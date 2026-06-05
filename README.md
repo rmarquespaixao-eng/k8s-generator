@@ -57,6 +57,11 @@ Cada recurso é ligado/desligado por um switch. O workload cabeia automaticament
   (nome DNS-1123, limit < request, Ingress sem TLS, min > max do HPA, etc.).
 - **Tema claro/escuro** + preview com syntax highlight de YAML.
 - **Nav por categorias** colapsáveis com indicador de recurso habilitado.
+- **Links de documentação** — cada recurso tem ↗ na sidebar e uma faixa com os
+  links oficiais (Kubernetes, Argo CD/Rollouts/Workflows, external-secrets) acima
+  do formulário. Mapa em [`core/docs.js`](src/renderer/src/core/docs.js).
+- **Preview em abas por arquivo** — aba "Todos" (visão combinada) + uma aba por
+  arquivo gerado (recurso/template); Copiar copia o arquivo da aba ativa.
 
 ## Desenvolvimento
 
